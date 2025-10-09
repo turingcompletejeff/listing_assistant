@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}JIRA Tasks - Create Listings{% endblock %}
+
+{% block content %}
+<div class="header">
+    <h1>📋 JIRA Tasks - Create Listings</h1>
+    <p class="subtitle">Select a task to create a new listing</p>
+    <div class="actions">
+        <a href="{{ url_for('listings_page') }}" class="btn btn-secondary">← Back to Listings</a>
+    </div>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+
+<div class="card">
+    <h3>JQL Query</h3>
+    <form method="get" action="{{ url_for('jira_tasks') }}" class="jql-form">
+        <input type="text" 
+               name="jql" 
+               value="{{ current_jql }}" 
+               class="jql-input"
+               placeholder="Enter custom JQL query">
+        <button type="submit" class="btn btn-primary">Search</button>
+    </form>
+</div>
+
+<div class="table-container">
+    {% if issues %}
+    <table>
+        <thead>
+            <tr>
+                <th>Key</th>
+                <th>Summary</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for issue in issues %}
+            <tr>
+                <td>
+                    <a href="{{ jira_site_url }}/browse/{{ issue.key }}" 
+                       target="_blank" 
+                       class="badge badge-jira">{{ issue.key }}</a>
+                </td>
+                <td>
+                    <strong>{{ issue.fields.summary }}</strong>
+                </td>
+                <td>
+                    <span class="badge badge-info">{{ issue.fields.status.name }}</span>
+                </td>
+                <td>
+                    <small>{{ issue.fields.created[:10] }}</small>
+                </td>
+                <td>
+                    {% if issue.key in existing_keys %}
+                    <span class="badge badge-success">✓ Listed</span>
+                    {% else %}
+                    <a href="{{ url_for('create_listing', issue_key=issue.key) }}" 
+                       class="btn btn-sm btn-primary">Create Listing</a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <h3>No tasks found</h3>
+        <p>No JIRA tasks match your search criteria</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

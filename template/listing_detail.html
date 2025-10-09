@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block title %}{{ listing.title }} - Listing Details{% endblock %}
+
+{% block content %}
+<a href="{{ url_for('listings_page') }}" class="back-link">← Back to all listings</a>
+
+<div class="card">
+    <h1>{{ listing.title }}</h1>
+    
+    <div class="metadata">
+        <div class="meta-item">
+            <div class="meta-label">Listing ID</div>
+            <div class="meta-value">#{{ listing.id }}</div>
+        </div>
+        <div class="meta-item">
+            <div class="meta-label">Status</div>
+            <div class="meta-value">{{ listing.status }}</div>
+        </div>
+        <div class="meta-item">
+            <div class="meta-label">Condition</div>
+            <div class="meta-value">{{ listing.condition }}</div>
+        </div>
+        <div class="meta-item">
+            <div class="meta-label">JIRA Issue</div>
+            <div class="meta-value">
+		    <a href="{{ jira_site_url }}/browse/{{ listing.jira_issue_key }}" 
+                   target="_blank" class="badge badge-jira">{{ listing.jira_issue_key }}</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="price-section">
+        <div class="price-main">{{ listing.suggested_price|currency }}</div>
+        <div class="price-range">
+            Price range: {{ listing.price_min|currency }} - {{ listing.price_max|currency }}
+        </div>
+    </div>
+
+    <div class="research-actions">
+    {% if listing.status == 'draft' %}
+    <button onclick="startResearch({{ listing.id }})" class="btn btn-primary btn-lg" id="research-btn">
+        🔍 Start Research
+    </button>
+    <span id="research-status" class="text-muted"></span>
+    {% elif listing.status == 'researching' %}
+    <div class="alert alert-info">
+        <strong>🔄 Research in progress...</strong>
+        <button onclick="location.reload()" class="btn btn-sm btn-secondary">Refresh Page</button>
+    </div>
+    {% elif listing.status == 'ready' %}
+    <div class="alert alert-success">
+        ✅ Research completed! Listing is ready.
+    </div>
+    {% endif %}
+</div>
+    
+    {% if listing.measurements %}
+    <div class="meta-item">
+        <div class="meta-label">Measurements</div>
+        <div class="meta-value">{{ listing.measurements }}</div>
+    </div>
+    {% endif %}
+    
+    <h2 class="section-title">Description</h2>
+    <div class="description">
+        <p>{{ listing.description|replace('\n', '<br>')|safe if listing.description else 'No description available' }}</p>
+    </div>
+    
+    {% if listing.images %}
+    <h2 class="section-title">Images ({{ listing.images|length }})</h2>
+    <div class="images-grid">
+        {% for img_path in listing.images %}
+        <div class="image-placeholder">📷 {{ img_path.split('/')[-1] }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    
+    {% if listing.sources %}
+    <h2 class="section-title">Research Sources ({{ listing.sources|length }})</h2>
+    {% for source in listing.sources %}
+    <div class="source-item">
+        <h4>{{ source.title }}</h4>
+        <p><strong>Price:</strong> {{ source.price|currency }}</p>
+        <p><strong>Location:</strong> {{ source.get('location', 'N/A') }}</p>
+        <p><a href="{{ source.url }}" target="_blank">View listing →</a></p>
+    </div>
+    {% endfor %}
+    {% endif %}
+    
+    <h2 class="section-title">Timeline</h2>
+    <div class="metadata">
+        <div class="meta-item">
+            <div class="meta-label">Created</div>
+            <div class="meta-value">{{ listing.created_at|datetime }}</div>
+        </div>
+        <div class="meta-item">
+            <div class="meta-label">Last Updated</div>
+            <div class="meta-value">{{ listing.updated_at|datetime }}</div>
+        </div>
+        {% if listing.listed_at %}
+        <div class="meta-item">
+            <div class="meta-label">Listed</div>
+            <div class="meta-value">{{ listing.listed_at|datetime }}</div>
+        </div>
+        {% endif %}
+        {% if listing.sold_at %}
+        <div class="meta-item">
+            <div class="meta-label">Sold</div>
+            <div class="meta-value">{{ listing.sold_at|datetime }}</div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+	function startResearch(listingId) {
+    const btn = document.getElementById('research-btn');
+    const status = document.getElementById('research-status');
+
+    btn.disabled = true;
+    btn.textContent = '🔄 Starting research...';
+    status.textContent = 'Please wait...';
+
+    fetch(`/listing/${listingId}/research`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            status.textContent = '✓ Research started! Refreshing in 3 seconds...';
+            setTimeout(() => {
+                location.reload();
+            }, 3000);
+        } else {
+            status.textContent = '✗ Error: ' + (data.error || 'Unknown error');
+            btn.disabled = false;
+            btn.textContent = '🔍 Start Research';
+        }
+    })
+    .catch(error => {
+        status.textContent = '✗ Error: ' + error.message;
+        btn.disabled = false;
+        btn.textContent = '🔍 Start Research';
+    });
+}
+
+// Auto-refresh if status is researching
+{% if listing.status == 'researching' %}
+setTimeout(() => {
+    location.reload();
+}, 10000); // Refresh every 10 seconds
+{% endif %}
+</script>
+
+{% endblock %}

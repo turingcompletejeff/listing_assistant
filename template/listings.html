@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}Craigslist Listings Manager{% endblock %}
+
+{% block content %}
+<div class="header">
+    <h1>📦 Craigslist Listings Manager</h1>
+    <p class="subtitle">Track and manage your Craigslist listings</p>
+    <div class="stats">
+        <div class="stat-card">
+            <h3>{{ total_count }}</h3>
+            <p>Total Listings</p>
+        </div>
+        <div class="stat-card stat-ready">
+            <h3>{{ status_counts.get('ready', 0) }}</h3>
+            <p>Ready to List</p>
+        </div>
+        <div class="stat-card stat-listed">
+            <h3>{{ status_counts.get('listed', 0) }}</h3>
+            <p>Currently Listed</p>
+        </div>
+        <div class="stat-card stat-sold">
+            <h3>{{ status_counts.get('sold', 0) }}</h3>
+            <p>Sold</p>
+        </div>
+    </div>
+</div>
+
+<div class="filters">
+    <div class="btn-group">
+        {% for status_name in ['all', 'draft', 'researching', 'ready', 'listed', 'sold'] %}
+        {% set count = status_counts.get(status_name, 0) if status_name != 'all' else total_count %}
+        <a href="{{ url_for('listings_page', status=status_name) }}" 
+           class="btn btn-sm btn-outline-primary {{ 'active' if status_name == current_filter else '' }}">
+            {{ status_name.title() }} <span class="badge badge-light">{{ count }}</span>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="table-container">
+    {% if listings %}
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Item</th>
+                <th>Status</th>
+                <th>Price</th>
+                <th>JIRA</th>
+                <th>Created</th>
+                <th>Updated</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for listing in listings %}
+            <tr>
+                <td><a href="{{ url_for('listing_detail', listing_id=listing.id) }}">{{ listing.id }}</a></td>
+                <td>
+                    <strong><a href="{{ url_for('listing_detail', listing_id=listing.id) }}">{{ listing.title }}</a></strong><br>
+                    <small class="text-muted">{{ listing.condition }}</small>
+                </td>
+                <td><span class="badge {{ status_badges.get(listing.status, 'badge-secondary') }}">{{ listing.status }}</span></td>
+                <td><strong>{{ listing.suggested_price|currency }}</strong></td>
+                <td>
+			<a href="{{ jira_site_url }}/browse/{{ listing.jira_issue_key }}" 
+                       target="_blank" class="badge badge-jira">{{ listing.jira_issue_key }}</a>
+                </td>
+                <td><small>{{ listing.created_at|datetime }}</small></td>
+                <td><small>{{ listing.updated_at|datetime }}</small></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <h3>No listings found</h3>
+        <p>Start by creating a new listing through the n8n webhook</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
