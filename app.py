@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 import requests
 from requests.auth import HTTPBasicAuth
 import threading
+from scraper import scrape_craigslist
 
 # Load environment variables from .env file
 load_dotenv()
@@ -208,33 +209,230 @@ def listing_detail(listing_id):
     """Detailed view of a single listing"""
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    
+
     cur.execute("""
-        SELECT id, jira_issue_key, title, description, category, 
-               price_min, price_max, suggested_price, condition, 
+        SELECT id, jira_issue_key, title, description, category,
+               price_min, price_max, suggested_price, condition,
                measurements, image_paths, research_sources, status,
                created_at, updated_at, listed_at, sold_at
-        FROM craigslist_listings 
+        FROM craigslist_listings
         WHERE id = %s
     """, (listing_id,))
-    
+
     listing = cur.fetchone()
+
+    if not listing:
+        cur.close()
+        conn.close()
+        return "Listing not found", 404
+
+    # Get scraped sources
+    cur.execute("""
+        SELECT id, title, url, price, location, posted_date,
+               description, condition, measurements, image_url, scraped_at
+        FROM craigslist_sources
+        WHERE listing_id = %s
+        ORDER BY price ASC NULLS LAST
+    """, (listing_id,))
+
+    sources = cur.fetchall()
+
     cur.close()
     conn.close()
-    
-    if not listing:
-        return "Listing not found", 404
-    
-    # Parse JSON fields
-    if listing['research_sources']:
-        listing['sources'] = json.loads(listing['research_sources']) if isinstance(listing['research_sources'], str) else listing['research_sources']
-    else:
-        listing['sources'] = []
-    
+
     # image_paths is now a native array, no need to parse
     listing['images'] = listing['image_paths'] if listing['image_paths'] else []
-    
+    listing['sources'] = sources
+
     return render_template('listing_detail.html', listing=listing)
+
+@app.route('/listing/<int:listing_id>/scrape-craigslist', methods=['POST'])
+def scrape_craigslist_sources(listing_id):
+    """Scrape Craigslist for similar listings"""
+    conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+    # Get listing details
+    cur.execute("SELECT id, title, status FROM craigslist_listings WHERE id = %s", (listing_id,))
+    listing = cur.fetchone()
+
+    if not listing:
+        cur.close()
+        conn.close()
+        return jsonify({'success': False, 'error': 'Listing not found'}), 404
+
+    # Update status to researching
+    cur.execute("""
+        UPDATE craigslist_listings
+        SET status = 'researching', updated_at = CURRENT_TIMESTAMP
+        WHERE id = %s
+    """, (listing_id,))
+    conn.commit()
+
+    try:
+        # Scrape Craigslist (Vermont by default)
+        print(f"\n{'='*60}")
+        print(f"Starting scrape for listing #{listing_id}: {listing['title']}")
+        print(f"{'='*60}\n")
+
+        results = scrape_craigslist(listing['title'], region='vermont', max_results=10)
+
+        print(f"\n{'='*60}")
+        print(f"Scraper returned {len(results)} results")
+        print(f"{'='*60}\n")
+
+        if not results:
+            print("WARNING: No results returned from scraper")
+            # Still update status to ready even with no results
+            cur.execute("""
+                UPDATE craigslist_listings
+                SET status = 'ready', updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (listing_id,))
+            conn.commit()
+            cur.close()
+            conn.close()
+            return jsonify({
+                'success': True,
+                'message': 'No similar listings found',
+                'stats': {'source_count': 0}
+            })
+
+        # Save results to database
+        saved_count = 0
+        errors = []
+
+        for i, result in enumerate(results, 1):
+            try:
+                print(f"\nSaving result {i}/{len(results)}: {result['title'][:50]}...")
+                print(f"  URL: {result['url']}")
+                print(f"  Price: ${result['price']}")
+
+                cur.execute("""
+                    INSERT INTO craigslist_sources
+                    (listing_id, title, url, price, location, posted_date,
+                     description, condition, measurements, image_url)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (listing_id, url) DO NOTHING
+                    RETURNING id
+                """, (
+                    listing_id,
+                    result['title'],
+                    result['url'],
+                    result['price'],
+                    result['location'],
+                    result['posted_date'],
+                    result['description'],
+                    result['condition'],
+                    result['measurements'],
+                    result['image_url']
+                ))
+
+                inserted = cur.fetchone()
+                if inserted:
+                    print(f"  ✓ Saved with ID: {inserted['id']}")
+                    saved_count += 1
+                else:
+                    print(f"  ⚠ Duplicate (already exists)")
+
+            except psycopg2.Error as e:
+                error_msg = f"Error saving source {i}: {e}"
+                print(f"  ✗ {error_msg}")
+                errors.append(error_msg)
+                conn.rollback()  # Rollback this insert but continue
+                continue
+
+        # Commit all successful inserts
+        conn.commit()
+
+        print(f"\n{'='*60}")
+        print(f"Saved {saved_count} out of {len(results)} results")
+        if errors:
+            print(f"Errors encountered: {len(errors)}")
+            for error in errors:
+                print(f"  - {error}")
+        print(f"{'='*60}\n")
+
+        # Calculate price statistics
+        cur.execute("""
+            SELECT
+                COUNT(*) as source_count,
+                MIN(price) as min_price,
+                MAX(price) as max_price,
+                AVG(price) as avg_price
+            FROM craigslist_sources
+            WHERE listing_id = %s AND price IS NOT NULL
+        """, (listing_id,))
+
+        stats = cur.fetchone()
+
+        print(f"Price statistics:")
+        print(f"  Count: {stats['source_count']}")
+        print(f"  Min: ${stats['min_price']}")
+        print(f"  Max: ${stats['max_price']}")
+        print(f"  Avg: ${stats['avg_price']}")
+
+        # Update listing with price info and status
+        if stats and stats['source_count'] > 0:
+            cur.execute("""
+                UPDATE craigslist_listings
+                SET price_min = %s,
+                    price_max = %s,
+                    suggested_price = %s,
+                    status = 'ready',
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (
+                stats['min_price'],
+                stats['max_price'],
+                round(stats['avg_price'], 2) if stats['avg_price'] else None,
+                listing_id
+            ))
+            print(f"\n✓ Updated listing with price range: ${stats['min_price']} - ${stats['max_price']}")
+        else:
+            # No sources with prices found, just mark as ready
+            cur.execute("""
+                UPDATE craigslist_listings
+                SET status = 'ready', updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (listing_id,))
+            print(f"\n⚠ No sources with prices found, marked as ready")
+
+        conn.commit()
+
+        cur.close()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'message': f'Found {saved_count} similar listings',
+            'stats': dict(stats) if stats else {'source_count': 0},
+            'errors': errors if errors else None
+        })
+
+    except Exception as e:
+        # Reset status on error
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"\n{'='*60}")
+        print(f"ERROR during scraping:")
+        print(error_trace)
+        print(f"{'='*60}\n")
+
+        try:
+            cur.execute("""
+                UPDATE craigslist_listings
+                SET status = 'draft', updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (listing_id,))
+            conn.commit()
+        except:
+            pass
+
+        cur.close()
+        conn.close()
+
+        return jsonify({'success': False, 'error': str(e), 'trace': error_trace}), 500
 
 @app.route('/jira-tasks')
 def jira_tasks():
@@ -396,6 +594,157 @@ def trigger_research(listing_id):
     
     flash('Research started! The page will update as results come in.', 'success')
     return jsonify({'success': True, 'message': 'Research started'})
+
+@app.route('/listing/<int:listing_id>/source/<int:source_id>/delete', methods=['POST', 'DELETE'])
+def delete_source(listing_id, source_id):
+    """Delete a research source and recalculate pricing"""
+    print(f"Delete source called: listing_id={listing_id}, source_id={source_id}")
+    
+    conn = None
+    cur = None
+    
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        
+        # Verify the source belongs to this listing
+        cur.execute("""
+            SELECT id FROM craigslist_sources 
+            WHERE id = %s AND listing_id = %s
+        """, (source_id, listing_id))
+        
+        source = cur.fetchone()
+        
+        if not source:
+            print(f"Source not found: source_id={source_id}, listing_id={listing_id}")
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
+            return jsonify({'success': False, 'error': 'Source not found'}), 404
+        
+        print(f"Deleting source {source_id}...")
+        
+        # Delete the source
+        cur.execute("DELETE FROM craigslist_sources WHERE id = %s", (source_id,))
+        
+        # Recalculate price statistics
+        cur.execute("""
+            SELECT 
+                COUNT(*) as source_count,
+                MIN(price) as min_price,
+                MAX(price) as max_price,
+                AVG(price) as avg_price
+            FROM craigslist_sources
+            WHERE listing_id = %s AND price IS NOT NULL
+        """, (listing_id,))
+        
+        stats = cur.fetchone()
+        print(f"Recalculated stats: {stats}")
+        
+        # Update listing with new price info
+        if stats and stats['source_count'] > 0:
+            cur.execute("""
+                UPDATE craigslist_listings 
+                SET price_min = %s,
+                    price_max = %s,
+                    suggested_price = %s,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (
+                stats['min_price'],
+                stats['max_price'],
+                round(float(stats['avg_price']), 2) if stats['avg_price'] else None,
+                listing_id
+            ))
+            
+            message = f"Source deleted. Updated pricing: ${stats['min_price']:.2f} - ${stats['max_price']:.2f}"
+        else:
+            # No sources left, clear pricing
+            cur.execute("""
+                UPDATE craigslist_listings 
+                SET price_min = NULL,
+                    price_max = NULL,
+                    suggested_price = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (listing_id,))
+            
+            message = "Source deleted. No sources remaining - pricing cleared."
+        
+        conn.commit()
+        print(f"Success: {message}")
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': message,
+            'stats': dict(stats) if stats and stats['source_count'] > 0 else None
+        }), 200
+        
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"Error deleting source: {e}")
+        print(error_trace)
+        
+        if conn:
+            conn.rollback()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+        
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/listing/<int:listing_id>/sources/delete-all', methods=['POST'])
+def delete_all_sources(listing_id):
+    """Delete all research sources for a listing"""
+    conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    
+    try:
+        # Check if listing exists
+        cur.execute("SELECT id FROM craigslist_listings WHERE id = %s", (listing_id,))
+        if not cur.fetchone():
+            cur.close()
+            conn.close()
+            return jsonify({'success': False, 'error': 'Listing not found'}), 404
+        
+        # Get count before deleting
+        cur.execute("SELECT COUNT(*) as count FROM craigslist_sources WHERE listing_id = %s", (listing_id,))
+        count = cur.fetchone()['count']
+        
+        # Delete all sources for this listing
+        cur.execute("DELETE FROM craigslist_sources WHERE listing_id = %s", (listing_id,))
+        
+        # Clear pricing from listing
+        cur.execute("""
+            UPDATE craigslist_listings 
+            SET price_min = NULL,
+                price_max = NULL,
+                suggested_price = NULL,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+        """, (listing_id,))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Deleted {count} sources. Pricing cleared.'
+        })
+        
+    except Exception as e:
+        conn.rollback()
+        cur.close()
+        conn.close()
+        print(f"Error deleting all sources: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/health')
 def health_check():
