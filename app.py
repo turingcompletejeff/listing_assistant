@@ -320,6 +320,94 @@ def update_listing_field(listing_id):
 
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/listing/<int:listing_id>/image/delete', methods=['POST'])
+def delete_listing_image(listing_id):
+    """Delete an image from a listing"""
+    data = request.json
+    image_path = data.get('image_path')
+
+    if not image_path:
+        return jsonify({'success': False, 'error': 'No image path provided'}), 400
+
+    conn = None
+    cur = None
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        # Get current listing
+        cur.execute("""
+            SELECT id, image_paths FROM craigslist_listings
+            WHERE id = %s
+        """, (listing_id,))
+
+        listing = cur.fetchone()
+
+        if not listing:
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
+            return jsonify({'success': False, 'error': 'Listing not found'}), 404
+
+        # Remove image_path from array
+        current_images = listing['image_paths'] or []
+
+        if image_path not in current_images:
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
+            return jsonify({'success': False, 'error': 'Image not found in listing'}), 404
+
+        # Remove from array
+        new_images = [img for img in current_images if img != image_path]
+
+        # Update database
+        cur.execute("""
+            UPDATE craigslist_listings
+            SET image_paths = %s,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+        """, (new_images, listing_id))
+
+        conn.commit()
+
+        # Try to delete physical file (optional - may want to keep for recovery)
+        try:
+            file_path = os.path.join('static', image_path)
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                print(f"Deleted file: {file_path}")
+        except Exception as e:
+            print(f"Could not delete file {image_path}: {e}")
+            # Don't fail the request if file deletion fails
+
+        cur.close()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'message': f'Image deleted successfully. {len(new_images)} image(s) remaining.',
+            'remaining_count': len(new_images)
+        }), 200
+
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"Error deleting image: {e}")
+        print(error_trace)
+
+        if conn:
+            conn.rollback()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/listing/<int:listing_id>/scrape-craigslist', methods=['POST'])
 def scrape_craigslist_sources(listing_id):
     """Scrape Craigslist for similar listings"""
