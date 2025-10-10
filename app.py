@@ -246,6 +246,80 @@ def listing_detail(listing_id):
 
     return render_template('listing_detail.html', listing=listing)
 
+@app.route('/listing/<int:listing_id>/update', methods=['POST'])
+def update_listing_field(listing_id):
+    """Update specific fields of a listing"""
+    data = request.json
+
+    conn = None
+    cur = None
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        # Check if listing exists
+        cur.execute("SELECT id FROM craigslist_listings WHERE id = %s", (listing_id,))
+        if not cur.fetchone():
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
+            return jsonify({'success': False, 'error': 'Listing not found'}), 404
+
+        # Build dynamic UPDATE query for allowed fields
+        allowed_fields = ['status', 'condition', 'measurements', 'description']
+        updates = []
+        values = []
+
+        for field in allowed_fields:
+            if field in data:
+                updates.append(f"{field} = %s")
+                values.append(data[field])
+
+        if not updates:
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
+            return jsonify({'success': False, 'error': 'No valid fields to update'}), 400
+
+        # Add updated_at timestamp
+        updates.append("updated_at = CURRENT_TIMESTAMP")
+
+        # Add listing_id for WHERE clause
+        values.append(listing_id)
+
+        # Execute update
+        query = f"""
+            UPDATE craigslist_listings
+            SET {', '.join(updates)}
+            WHERE id = %s
+        """
+
+        cur.execute(query, values)
+        conn.commit()
+
+        cur.close()
+        conn.close()
+
+        return jsonify({'success': True, 'message': 'Listing updated successfully'})
+
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"Error updating listing: {e}")
+        print(error_trace)
+
+        if conn:
+            conn.rollback()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/listing/<int:listing_id>/scrape-craigslist', methods=['POST'])
 def scrape_craigslist_sources(listing_id):
     """Scrape Craigslist for similar listings"""

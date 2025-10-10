@@ -15,16 +15,20 @@
         </div>
         <div class="meta-item">
             <div class="meta-label">Status</div>
-	    <div id="statuswrap" class="meta-value"><input id="statusfield" type="text" value="{{ listing.status }}" disabled></div>
+            <div id="statuswrap" class="meta-value">
+                <input id="statusfield" type="text" value="{{ listing.status }}" readonly data-original="{{ listing.status }}" class="editable-field">
+            </div>
         </div>
         <div class="meta-item">
             <div class="meta-label">Condition</div>
-            <div class="meta-value">{{ listing.condition }}</div>
+            <div class="meta-value">
+                <input id="conditionfield" type="text" value="{{ listing.condition }}" readonly data-original="{{ listing.condition }}" class="editable-field">
+            </div>
         </div>
         <div class="meta-item">
             <div class="meta-label">JIRA Issue</div>
             <div class="meta-value">
-		    <a href="{{ jira_site_url }}/browse/{{ listing.jira_issue_key }}" 
+                <a href="{{ jira_site_url }}/browse/{{ listing.jira_issue_key }}" 
                    target="_blank" class="badge badge-jira">{{ listing.jira_issue_key }}</a>
             </div>
         </div>
@@ -53,22 +57,21 @@
         ✅ Research completed! Listing is ready.
     </div>
     {% endif %}
-</div>
+    </div>
     
-    {% if listing.measurements %}
     <div class="meta-item">
         <div class="meta-label">Measurements</div>
-        <div class="meta-value">{{ listing.measurements }}</div>
+        <div class="meta-value">
+            <input id="measurementsfield" class="editable-field" type="text" value="{{ listing.measurements or '' }}" readonly data-original="{{ listing.measurements or '' }}">
+        </div>
     </div>
-    {% endif %}
     
     <h2 class="section-title">Description</h2>
     <div class="description">
-        <p>{{ listing.description|replace('\n', '<br>')|safe if listing.description else 'No description available' }}</p>
+        <textarea id="descriptionfield" class="editable-field" readonly data-original="{{ listing.description or '' }}">{{ listing.description or 'No description available' }}</textarea>
     </div>
     
     {% if listing.images %}
-
 
 <h2 class="section-title">My Images ({{ listing.images|length }})</h2>
 <div class="my-images-grid">
@@ -118,7 +121,7 @@
     
     {% if listing.sources %}
 
-	<h2 class="section-title">
+<h2 class="section-title">
     Research Sources ({{ listing.sources|length }})
     {% if listing.sources|length > 0 %}
     <button onclick="deleteAllSources({{ listing.id }})" class="btn btn-sm btn-danger" style="float: right;">
@@ -233,6 +236,44 @@
     </div>
 </div>
 
+<style>
+.editable-field {
+    transition: background-color 0.2s;
+}
+
+.editable-field.modified {
+    background-color: #ffeb3b !important;
+}
+
+.editable-field[readonly] {
+    background-color: #f5f5f5;
+    color: #666;
+    cursor: pointer;
+    border: 1px solid #ddd;
+}
+
+.editable-field[readonly]:hover {
+    background-color: #ececec;
+}
+
+#descriptionfield {
+    width: 100%;
+    min-height: 150px;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: inherit;
+    resize: vertical;
+}
+
+#statusfield, #conditionfield, #measurementsfield {
+    width: 100%;
+    padding: 5px;
+    border-radius: 4px;
+}
+</style>
+
 <script>
 // Image Modal Functions
 let currentImageUrl = '';
@@ -246,11 +287,9 @@ function openImageModal(imageUrl) {
     modal.style.display = 'flex';
     modalImg.src = imageUrl;
     
-    // Extract filename for caption
     const filename = imageUrl.split('/').pop();
     caption.textContent = filename;
     
-    // Prevent body scroll when modal is open
     document.body.style.overflow = 'hidden';
 }
 
@@ -274,7 +313,6 @@ function copyModalImageUrl() {
 }
 
 function copyImageUrl(url) {
-    // Create a temporary input element
     const input = document.createElement('input');
     input.value = url;
     document.body.appendChild(input);
@@ -284,7 +322,6 @@ function copyImageUrl(url) {
         document.execCommand('copy');
         alert('Image URL copied to clipboard!\n\n' + url);
     } catch (err) {
-        // Fallback for modern browsers
         navigator.clipboard.writeText(url).then(() => {
             alert('Image URL copied to clipboard!\n\n' + url);
         }).catch(() => {
@@ -295,13 +332,11 @@ function copyImageUrl(url) {
     document.body.removeChild(input);
 }
 
-// Close modal with Escape key
 document.addEventListener('keydown', function(event) {
     if (event.key === 'Escape') {
         closeImageModal();
     }
 });
-
 
 function deleteSource(listingId, sourceId) {
     if (!confirm('Are you sure you want to delete this source? Pricing will be recalculated.')) {
@@ -321,7 +356,6 @@ function deleteSource(listingId, sourceId) {
         console.log('Response status:', response.status);
         console.log('Response headers:', response.headers.get('content-type'));
         
-        // Check if response is actually JSON
         const contentType = response.headers.get('content-type');
         if (!contentType || !contentType.includes('application/json')) {
             throw new Error('Server returned non-JSON response. Check server logs.');
@@ -333,7 +367,6 @@ function deleteSource(listingId, sourceId) {
         console.log('Response data:', data);
         
         if (data.success) {
-            // Remove the card from the DOM
             const card = document.getElementById(`source-${sourceId}`);
             if (card) {
                 card.style.transition = 'opacity 0.3s';
@@ -341,18 +374,14 @@ function deleteSource(listingId, sourceId) {
                 setTimeout(() => {
                     card.remove();
                     
-                    // Check if no more sources
                     const sourcesGrid = document.querySelector('.sources-grid');
                     if (sourcesGrid && sourcesGrid.children.length === 0) {
-                        location.reload(); // Reload to show updated pricing
+                        location.reload();
                     }
                 }, 300);
             }
             
-            // Show success message
             alert(data.message);
-            
-            // Reload page to update pricing display
             setTimeout(() => location.reload(), 500);
         } else {
             alert('Error: ' + (data.error || 'Unknown error'));
@@ -438,29 +467,134 @@ function startResearch(listingId) {
     });
 }
 
-// Auto-refresh if status is researching
 {% if listing.status == 'researching' %}
 setTimeout(() => {
     location.reload();
-}, 10000); // Refresh every 10 seconds
+}, 10000);
 {% endif %}
 
+// Editable fields functionality
+const listingId = {{ listing.id }};
+
+function setupEditableField(fieldId, fieldName) {
+    const field = document.getElementById(fieldId);
+    if (!field) return;
+    
+    // Enable editing on click when readonly
+    field.addEventListener('click', function() {
+        if (this.readOnly) {
+            this.readOnly = false;
+            this.style.backgroundColor = '';
+            this.style.color = '';
+            this.focus();
+            this.select();
+        }
+    });
+    
+    // Track changes
+    field.addEventListener('input', function() {
+        const originalValue = this.dataset.original;
+        if (this.value !== originalValue) {
+            this.classList.add('modified');
+        } else {
+            this.classList.remove('modified');
+        }
+    });
+    
+    // Handle keyboard events
+    field.addEventListener('keydown', function(event) {
+        if (event.key === 'Enter') {
+	    // for textarea, allow shift+enter for new lines
+	    if(this.tagName === 'TEXTAREA' && event.shiftKey) {
+		    // allow default behaviour (insert newline)
+		    return;
+	    }
 
 
+            event.preventDefault();
+            
+            const newValue = this.value.trim();
+            const originalValue = this.dataset.original;
+            
+            if (newValue !== originalValue) {
+                // Update the listing
+                updateListingField(listingId, fieldName, newValue, field);
+            } else {
+                // No change, just set back to readonly
+                this.readOnly = true;
+                this.classList.remove('modified');
+            }
+        } else if (event.key === 'Escape') {
+            // Revert to original value
+            this.value = this.dataset.original;
+            this.classList.remove('modified');
+            this.readOnly = true;
+        }
+    });
+    
+    // Handle blur (click outside)
+    field.addEventListener('blur', function() {
+        const originalValue = this.dataset.original;
+        if (this.value !== originalValue && this.classList.contains('modified')) {
+            // Ask user if they want to save
+            if (confirm('Save changes to ' + fieldName + '?')) {
+                updateListingField(listingId, fieldName, this.value.trim(), field);
+            } else {
+                this.value = originalValue;
+                this.classList.remove('modified');
+                this.readOnly = true;
+            }
+        } else {
+            this.readOnly = true;
+        }
+    });
+}
 
-document.getElementById("statusfield").addEventListener('keydown', function(event) {
-	const statusfield = document.getElementById("statusfield");
+function updateListingField(listingId, fieldName, value, fieldElement) {
+    const data = {};
+    data[fieldName] = value;
+    
+    fetch('/listing/' + listingId + '/update', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Update stored original value
+            fieldElement.dataset.original = value;
+            fieldElement.classList.remove('modified');
+            fieldElement.readOnly = true;
+            
+            // Show success message briefly
+            const originalBg = fieldElement.style.backgroundColor;
+            fieldElement.style.backgroundColor = '#4caf50';
+            setTimeout(function() {
+                fieldElement.style.backgroundColor = originalBg;
+            }, 500);
+        } else {
+            alert('Error updating ' + fieldName + ': ' + (data.error || 'Unknown error'));
+            fieldElement.value = fieldElement.dataset.original;
+            fieldElement.classList.remove('modified');
+        }
+    })
+    .catch(error => {
+        console.error('Update error:', error);
+        alert('Error updating ' + fieldName + ': ' + error.message);
+        fieldElement.value = fieldElement.dataset.original;
+        fieldElement.classList.remove('modified');
+    });
+}
 
-	// if event keypress == enter
-	// update status
-	// reset to disabled input
-
-	// else if event keypress == escape
-	// reset to original value
-	// reset to disabled input
-
-});
-
+// Setup all editable fields
+setupEditableField('statusfield', 'status');
+setupEditableField('conditionfield', 'condition');
+setupEditableField('measurementsfield', 'measurements');
+setupEditableField('descriptionfield', 'description');
 
 </script>
 
