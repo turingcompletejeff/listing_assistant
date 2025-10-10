@@ -15,7 +15,7 @@
         </div>
         <div class="meta-item">
             <div class="meta-label">Status</div>
-            <div class="meta-value">{{ listing.status }}</div>
+	    <div id="statuswrap" class="meta-value"><input id="statusfield" type="text" value="{{ listing.status }}" disabled></div>
         </div>
         <div class="meta-item">
             <div class="meta-label">Condition</div>
@@ -68,12 +68,52 @@
     </div>
     
     {% if listing.images %}
-    <h2 class="section-title">Images ({{ listing.images|length }})</h2>
-    <div class="images-grid">
-        {% for img_path in listing.images %}
-        <div class="image-placeholder">📷 {{ img_path.split('/')[-1] }}</div>
-        {% endfor %}
+
+
+<h2 class="section-title">My Images ({{ listing.images|length }})</h2>
+<div class="my-images-grid">
+    {% for img_path in listing.images %}
+    <div class="my-image-card">
+        <div class="my-image-preview" onclick="openImageModal('{{ url_for('static', filename=img_path) }}')">
+            <img src="{{ url_for('static', filename=img_path) }}"
+                 alt="Listing image {{ loop.index }}"
+                 loading="lazy">
+            <div class="my-image-overlay">
+                <span class="my-image-zoom-icon">🔍</span>
+            </div>
+        </div>
+        <div class="my-image-actions">
+            <button onclick="copyImageUrl('{{ url_for('static', filename=img_path, _external=True) }}')"
+                    class="btn btn-sm btn-outline-secondary"
+                    title="Copy image URL">
+                📋 Copy URL
+            </button>
+            <a href="{{ url_for('static', filename=img_path) }}"
+               target="_blank"
+               class="btn btn-sm btn-outline-secondary"
+               title="Open in new tab">
+                🔗 Full Size
+            </a>
+        </div>
     </div>
+    {% endfor %}
+</div>
+
+<!-- Image Modal/Lightbox -->
+<div id="imageModal" class="image-modal" onclick="closeImageModal()">
+    <span class="image-modal-close">&times;</span>
+    <img class="image-modal-content" id="modalImage">
+    <div class="image-modal-caption" id="modalCaption"></div>
+    <div class="image-modal-actions">
+        <button onclick="event.stopPropagation(); downloadModalImage()" class="btn btn-primary">
+            ⬇️ Download
+        </button>
+        <button onclick="event.stopPropagation(); copyModalImageUrl()" class="btn btn-secondary">
+            📋 Copy URL
+        </button>
+    </div>
+</div>
+
     {% endif %}
     
     {% if listing.sources %}
@@ -194,6 +234,75 @@
 </div>
 
 <script>
+// Image Modal Functions
+let currentImageUrl = '';
+
+function openImageModal(imageUrl) {
+    const modal = document.getElementById('imageModal');
+    const modalImg = document.getElementById('modalImage');
+    const caption = document.getElementById('modalCaption');
+    
+    currentImageUrl = imageUrl;
+    modal.style.display = 'flex';
+    modalImg.src = imageUrl;
+    
+    // Extract filename for caption
+    const filename = imageUrl.split('/').pop();
+    caption.textContent = filename;
+    
+    // Prevent body scroll when modal is open
+    document.body.style.overflow = 'hidden';
+}
+
+function closeImageModal() {
+    const modal = document.getElementById('imageModal');
+    modal.style.display = 'none';
+    document.body.style.overflow = 'auto';
+}
+
+function downloadModalImage() {
+    const link = document.createElement('a');
+    link.href = currentImageUrl;
+    link.download = currentImageUrl.split('/').pop();
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function copyModalImageUrl() {
+    copyImageUrl(currentImageUrl);
+}
+
+function copyImageUrl(url) {
+    // Create a temporary input element
+    const input = document.createElement('input');
+    input.value = url;
+    document.body.appendChild(input);
+    input.select();
+    
+    try {
+        document.execCommand('copy');
+        alert('Image URL copied to clipboard!\n\n' + url);
+    } catch (err) {
+        // Fallback for modern browsers
+        navigator.clipboard.writeText(url).then(() => {
+            alert('Image URL copied to clipboard!\n\n' + url);
+        }).catch(() => {
+            alert('Failed to copy. URL: ' + url);
+        });
+    }
+    
+    document.body.removeChild(input);
+}
+
+// Close modal with Escape key
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        closeImageModal();
+    }
+});
+
+
 function deleteSource(listingId, sourceId) {
     if (!confirm('Are you sure you want to delete this source? Pricing will be recalculated.')) {
         return;
@@ -335,6 +444,24 @@ setTimeout(() => {
     location.reload();
 }, 10000); // Refresh every 10 seconds
 {% endif %}
+
+
+
+
+document.getElementById("statusfield").addEventListener('keydown', function(event) {
+	const statusfield = document.getElementById("statusfield");
+
+	// if event keypress == enter
+	// update status
+	// reset to disabled input
+
+	// else if event keypress == escape
+	// reset to original value
+	// reset to disabled input
+
+});
+
+
 </script>
 
 {% endblock %}
