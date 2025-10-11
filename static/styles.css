@@ -585,6 +585,10 @@ select.form-control {
 	text-decoration: underline;
 }
 
+.meta-item {
+	margin-top: 10px;
+}
+
 .container {
 	width: 70vw;
 	background-color: #cccccc;
