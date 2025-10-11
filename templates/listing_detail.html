@@ -14,6 +14,13 @@
             <div class="meta-value">#{{ listing.id }}</div>
         </div>
         <div class="meta-item">
+            <div class="meta-label">JIRA Issue</div>
+            <div class="meta-value">
+                <a href="{{ jira_site_url }}/browse/{{ listing.jira_issue_key }}" 
+                   target="_blank" class="badge badge-jira">{{ listing.jira_issue_key }}</a>
+            </div>
+        </div>
+        <div class="meta-item">
             <div class="meta-label">Status</div>
             <div id="statuswrap" class="meta-value">
                 <input id="statusfield" type="text" value="{{ listing.status }}" readonly data-original="{{ listing.status }}" class="editable-field">
@@ -25,40 +32,17 @@
                 <input id="conditionfield" type="text" value="{{ listing.condition }}" readonly data-original="{{ listing.condition }}" class="editable-field">
             </div>
         </div>
-        <div class="meta-item">
-            <div class="meta-label">JIRA Issue</div>
-            <div class="meta-value">
-                <a href="{{ jira_site_url }}/browse/{{ listing.jira_issue_key }}" 
-                   target="_blank" class="badge badge-jira">{{ listing.jira_issue_key }}</a>
-            </div>
-        </div>
+        
     </div>
     
     <div class="price-section">
+        <div class="meta-label">Suggested Price<div>
         <div class="price-main">{{ listing.suggested_price|currency }}</div>
         <div class="price-range">
             Price range: {{ listing.price_min|currency }} - {{ listing.price_max|currency }}
         </div>
     </div>
 
-    <div class="research-actions">
-    {% if listing.status == 'draft' %}
-    <button onclick="startResearch({{ listing.id }})" class="btn btn-primary btn-lg" id="research-btn">
-        🔍 Start Research
-    </button>
-    <span id="research-status" class="text-muted"></span>
-    {% elif listing.status == 'researching' %}
-    <div class="alert alert-info">
-        <strong>🔄 Research in progress...</strong>
-        <button onclick="location.reload()" class="btn btn-sm btn-secondary">Refresh Page</button>
-    </div>
-    {% elif listing.status == 'ready' %}
-    <div class="alert alert-success">
-        ✅ Research completed! Listing is ready.
-    </div>
-    {% endif %}
-    </div>
-    
     <div class="meta-item">
         <div class="meta-label">Measurements</div>
         <div class="meta-value">
@@ -123,6 +107,24 @@
 </div>
 
     {% endif %}
+    
+    <div class="research-actions">
+      {% if listing.status == 'draft' %}
+      <button onclick="startResearch({{ listing.id }})" class="btn btn-primary btn-lg" id="research-btn">
+          🔍 Start Research
+      </button>
+      <span id="research-status" class="text-muted"></span>
+      {% elif listing.status == 'researching' %}
+      <div class="alert alert-info">
+          <strong>🔄 Research in progress...</strong>
+          <button onclick="location.reload()" class="btn btn-sm btn-secondary">Refresh Page</button>
+      </div>
+      {% elif listing.status == 'ready' %}
+      <div class="alert alert-success">
+          ✅ Research completed! Listing is ready.
+      </div>
+      {% endif %}
+    </div>
     
     {% if listing.sources %}
 
