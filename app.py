@@ -268,7 +268,7 @@ def update_listing_field(listing_id):
             return jsonify({'success': False, 'error': 'Listing not found'}), 404
 
         # Build dynamic UPDATE query for allowed fields
-        allowed_fields = ['status', 'condition', 'measurements', 'description']
+        allowed_fields = ['title', 'status', 'condition', 'measurements', 'description']
         updates = []
         values = []
 
@@ -406,6 +406,163 @@ def delete_listing_image(listing_id):
         if conn:
             conn.close()
 
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/listing/<int:listing_id>/source/add', methods=['POST'])
+def add_source_to_listing(listing_id):
+    """Add a new source to a listing from a URL"""
+    data = request.json
+    url = data.get('url')
+    
+    if not url:
+        return jsonify({'success': False, 'error': 'URL is required'}), 400
+    
+    conn = None
+    cur = None
+    
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        
+        # Verify listing exists
+        cur.execute("SELECT id, title FROM craigslist_listings WHERE id = %s", (listing_id,))
+        listing = cur.fetchone()
+        
+        if not listing:
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
+            return jsonify({'success': False, 'error': 'Listing not found'}), 404
+        
+        # Extract fields from request (all optional except URL)
+        title = data.get('title', 'Untitled Source')
+        price = data.get('price')
+        location = data.get('location')
+        posted_date = data.get('posted_date')
+        description = data.get('description')
+        condition = data.get('condition')
+        measurements = data.get('measurements')
+        image_url = data.get('image_url')
+        
+        # Convert price to decimal if it's a string
+        if price and isinstance(price, str):
+            try:
+                # Remove $ and commas
+                price = price.replace('$', '').replace(',', '').strip()
+                price = float(price)
+            except ValueError:
+                price = None
+        
+        print(f"\nAdding source to listing #{listing_id}:")
+        print(f"  URL: {url}")
+        print(f"  Title: {title}")
+        print(f"  Price: ${price}" if price else "  Price: None")
+        
+        # Insert the source
+        cur.execute("""
+            INSERT INTO craigslist_sources
+            (listing_id, title, url, price, location, posted_date,
+             description, condition, measurements, image_url)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (listing_id, url) DO UPDATE SET
+                title = EXCLUDED.title,
+                price = EXCLUDED.price,
+                location = EXCLUDED.location,
+                posted_date = EXCLUDED.posted_date,
+                description = EXCLUDED.description,
+                condition = EXCLUDED.condition,
+                measurements = EXCLUDED.measurements,
+                image_url = EXCLUDED.image_url,
+                scraped_at = CURRENT_TIMESTAMP
+            RETURNING id
+        """, (
+            listing_id,
+            title,
+            url,
+            price,
+            location,
+            posted_date,
+            description,
+            condition,
+            measurements,
+            image_url
+        ))
+        
+        result = cur.fetchone()
+        source_id = result['id']
+        
+        # Recalculate price statistics
+        cur.execute("""
+            SELECT 
+                COUNT(*) as source_count,
+                MIN(price) as min_price,
+                MAX(price) as max_price,
+                AVG(price) as avg_price
+            FROM craigslist_sources
+            WHERE listing_id = %s AND price IS NOT NULL
+        """, (listing_id,))
+        
+        stats = cur.fetchone()
+        
+        # Update listing with new price info
+        if stats and stats['source_count'] > 0:
+            cur.execute("""
+                UPDATE craigslist_listings 
+                SET price_min = %s,
+                    price_max = %s,
+                    suggested_price = %s,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (
+                stats['min_price'],
+                stats['max_price'],
+                round(float(stats['avg_price']), 2) if stats['avg_price'] else None,
+                listing_id
+            ))
+        
+        conn.commit()
+        
+        print(f"  ✓ Source added with ID: {source_id}")
+        if stats and stats['source_count'] > 0:
+            print(f"  Updated pricing: ${stats['min_price']:.2f} - ${stats['max_price']:.2f}")
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Source added successfully',
+            'source_id': source_id,
+            'stats': dict(stats) if stats and stats['source_count'] > 0 else None
+        }), 201
+        
+    except psycopg2.IntegrityError as e:
+        if conn:
+            conn.rollback()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+        
+        return jsonify({
+            'success': False,
+            'error': 'This URL already exists for this listing'
+        }), 409
+        
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"Error adding source: {e}")
+        print(error_trace)
+        
+        if conn:
+            conn.rollback()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+        
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/listing/<int:listing_id>/scrape-craigslist', methods=['POST'])

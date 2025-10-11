@@ -6,7 +6,7 @@
 <a href="{{ url_for('listings_page') }}" class="back-link">← Back to all listings</a>
 
 <div class="card">
-    <h1>{{ listing.title }}</h1>
+	<div><input id="titlefield" type="text" value="{{ listing.title }}" readonly data-original="{{ listing.title }}" class="editable-field"></div>
     
     <div class="metadata">
         <div class="meta-item">
@@ -276,6 +276,13 @@
     width: 100%;
     padding: 5px;
     border-radius: 4px;
+}
+
+#titlefield {
+	width: 100%;
+	padding: 5px;
+	border-radius: 4px;
+	font-size: xx-large;
 }
 </style>
 
@@ -657,6 +664,7 @@ function updateListingField(listingId, fieldName, value, fieldElement) {
 }
 
 // Setup all editable fields
+setupEditableField('titlefield', 'title');
 setupEditableField('statusfield', 'status');
 setupEditableField('conditionfield', 'condition');
 setupEditableField('measurementsfield', 'measurements');

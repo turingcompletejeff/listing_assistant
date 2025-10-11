@@ -584,3 +584,11 @@ select.form-control {
 	font-weight: bolder;
 	text-decoration: underline;
 }
+
+.container {
+	width: 70vw;
+	background-color: #cccccc;
+	padding-top: 10px;
+	padding-left: 50px;
+	padding-right: 50px;
+}
