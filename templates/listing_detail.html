@@ -16,6 +16,7 @@
         <div class="meta-item">
             <div class="meta-label">JIRA Issue</div>
             <div class="meta-value">
+		    <input id="issuefield" type="text" value="{{ listing.jira_issue_key }}" readonly data-original="{{ listing.jira_issue_key }}" class="editable-field">
                 <a href="{{ jira_site_url }}/browse/{{ listing.jira_issue_key }}" 
                    target="_blank" class="badge badge-jira">{{ listing.jira_issue_key }}</a>
             </div>
@@ -667,6 +668,7 @@ function updateListingField(listingId, fieldName, value, fieldElement) {
 
 // Setup all editable fields
 setupEditableField('titlefield', 'title');
+setupEditableField('issuefield', 'jira_issue_key');
 setupEditableField('statusfield', 'status');
 setupEditableField('conditionfield', 'condition');
 setupEditableField('measurementsfield', 'measurements');

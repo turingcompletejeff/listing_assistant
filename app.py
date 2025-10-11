@@ -290,7 +290,7 @@ def update_listing_field(listing_id):
             return jsonify({'success': False, 'error': 'Listing not found'}), 404
 
         # Build dynamic UPDATE query for allowed fields
-        allowed_fields = ['title', 'status', 'condition', 'measurements', 'description']
+        allowed_fields = ['title', 'jira_issue_key', 'status', 'condition', 'measurements', 'description']
         updates = []
         values = []
 
@@ -779,7 +779,7 @@ def scrape_craigslist_sources(listing_id):
 def jira_tasks():
     """Show JIRA tasks in TODO status"""
     # Default JQL for listing tasks in TODO status
-    jql = 'project = "ecommerce-site" AND status = "TO DO" AND labels = listing ORDER BY created DESC'
+    jql = 'project = "listing-agent" AND status = "TO DO" AND labels = listing ORDER BY created DESC'
     
     # Allow custom JQL from query params
     custom_jql = request.args.get('jql')
