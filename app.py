@@ -125,6 +125,28 @@ def get_jira_issue(issue_key):
         print(f"JIRA API error: {e}")
         return None
 
+@app.template_filter('domain_name')
+def domain_name_filter(url):
+    try:
+        from urllib.parse import urlparse
+        domain = urlparse(url).netloc
+        domain = domain.replace('www.', '')
+        
+        # Split by dots
+        parts = domain.split('.')
+        
+        # If there are 3+ parts (like vermont.craigslist.org),
+        # use the second-to-last part (the main domain)
+        if len(parts) >= 3:
+            return parts[-2].capitalize()
+        # Otherwise (like ebay.com or packvintage.com), use the first part
+        elif len(parts) >= 2:
+            return parts[0].capitalize()
+        else:
+            return parts[0].capitalize()
+    except:
+        return 'Source'
+
 @app.template_filter('currency')
 def currency_filter(amount):
     """Format number as currency"""

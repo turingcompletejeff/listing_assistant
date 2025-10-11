@@ -204,7 +204,7 @@
                     Posted: {{ source.posted_date or 'Unknown' }}
                 </small>
                 <a href="{{ source.url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">
-                    View on Craigslist →
+                    View on {{ source.url|domain_name }} →
                 </a>
             </div>
         </div>
