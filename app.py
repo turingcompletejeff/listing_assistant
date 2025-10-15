@@ -235,8 +235,9 @@ def listing_detail(listing_id):
     cur.execute("""
         SELECT id, jira_issue_key, title, description, category,
                price_min, price_max, suggested_price, condition,
-               measurements, image_paths, research_sources, status,
-               created_at, updated_at, listed_at, sold_at
+               measurements, image_paths, status,
+               created_at, updated_at, listed_at, sold_at,
+               list_price, sold_price
         FROM craigslist_listings
         WHERE id = %s
     """, (listing_id,))
@@ -299,9 +300,9 @@ def update_listing_field(listing_id):
                 updates.append(f"{field} = %s")
                 values.append(data[field])
                 
-                if field == "status" && data[field] == "listed":
+                if field == "status" and data[field] == "listed":
                     updates.append("listed_at = CURRENT_TIMESTAMP")
-                elif field == "status" && data[field] == "sold":
+                elif field == "status" and data[field] == "sold":
                     updates.append("sold_at = CURRENT_TIMESTAMP")
 
         if not updates:
