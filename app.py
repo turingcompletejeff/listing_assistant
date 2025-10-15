@@ -150,9 +150,13 @@ def domain_name_filter(url):
 @app.template_filter('currency')
 def currency_filter(amount):
     """Format number as currency"""
-    if amount is None:
+    try:
+        if amount is None:
+            return "N/A"
+        return f"${amount:,.2f}"
+    except:
+        print(f"incorrect format ${amount}")
         return "N/A"
-    return f"${amount:,.2f}"
 
 @app.template_filter('datetime')
 def datetime_filter(date_obj):
@@ -182,14 +186,16 @@ def listings_page():
     if status_filter == 'all':
         cur.execute("""
             SELECT id, jira_issue_key, title, suggested_price, status, 
-                   condition, created_at, updated_at
+                   condition, created_at, updated_at,
+                   list_price, sold_price, listed_at, sold_at
             FROM craigslist_listings 
             ORDER BY created_at DESC
         """)
     else:
         cur.execute("""
             SELECT id, jira_issue_key, title, suggested_price, status, 
-                   condition, created_at, updated_at
+                   condition, created_at, updated_at,
+                   list_price, sold_price, listed_at, sold_at
             FROM craigslist_listings 
             WHERE status = %s
             ORDER BY created_at DESC
