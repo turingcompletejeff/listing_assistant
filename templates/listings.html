@@ -46,10 +46,14 @@
                 <th>ID</th>
                 <th>Item</th>
                 <th>Status</th>
-                <th>Price</th>
+                <th>Price (Suggested)</th>
+                <th>Price (Listed)</th>
+                <th>Price (Sold)</th>
                 <th>JIRA</th>
                 <th>Created</th>
                 <th>Updated</th>
+                <th>Listed</th>
+                <th>Sold</th>
             </tr>
         </thead>
         <tbody>
@@ -62,12 +66,16 @@
                 </td>
                 <td><span class="badge {{ status_badges.get(listing.status, 'badge-secondary') }}">{{ listing.status }}</span></td>
                 <td><strong>{{ listing.suggested_price|currency }}</strong></td>
+                <td><strong>{{ listing.list_price|currency }}</strong></td>
+                <td><strong>{{ listing.sold_price|currency }}</strong></td>
                 <td>
 			<a href="{{ jira_site_url }}/browse/{{ listing.jira_issue_key }}" 
                        target="_blank" class="badge badge-jira">{{ listing.jira_issue_key }}</a>
                 </td>
                 <td><small>{{ listing.created_at|datetime }}</small></td>
                 <td><small>{{ listing.updated_at|datetime }}</small></td>
+                <td><small>{{ listing.listed_at|datetime }}</small></td>
+                <td><small>{{ listing.sold_at|datetime }}</small></td>
             </tr>
             {% endfor %}
         </tbody>
