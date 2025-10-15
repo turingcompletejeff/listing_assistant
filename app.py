@@ -290,7 +290,7 @@ def update_listing_field(listing_id):
             return jsonify({'success': False, 'error': 'Listing not found'}), 404
 
         # Build dynamic UPDATE query for allowed fields
-        allowed_fields = ['title', 'jira_issue_key', 'status', 'condition', 'measurements', 'description']
+        allowed_fields = ['title', 'jira_issue_key', 'status', 'condition', 'measurements', 'description', 'list_price', 'sold_price']
         updates = []
         values = []
 
@@ -298,6 +298,11 @@ def update_listing_field(listing_id):
             if field in data:
                 updates.append(f"{field} = %s")
                 values.append(data[field])
+                
+                if field == "status" && data[field] == "listed":
+                    updates.append("listed_at = CURRENT_TIMESTAMP")
+                elif field == "status" && data[field] == "sold":
+                    updates.append("sold_at = CURRENT_TIMESTAMP")
 
         if not updates:
             if cur:

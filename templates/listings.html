@@ -28,7 +28,7 @@
 
 <div class="filters">
     <div class="btn-group">
-        {% for status_name in ['all', 'draft', 'researching', 'ready', 'listed', 'sold'] %}
+        {% for status_name in ['all', 'draft', 'researching', 'on hold', 'ready', 'listed', 'sold'] %}
         {% set count = status_counts.get(status_name, 0) if status_name != 'all' else total_count %}
         <a href="{{ url_for('listings_page', status=status_name) }}" 
            class="btn btn-sm btn-outline-primary {{ 'active' if status_name == current_filter else '' }}">
@@ -75,7 +75,7 @@
     {% else %}
     <div class="empty-state">
         <h3>No listings found</h3>
-        <p>Start by creating a new listing through the n8n webhook</p>
+        <p>Start by creating a new listing from a <a href="{{ url_for('jira_tasks') }}" >JIRA Task.</a></p>
     </div>
     {% endif %}
 </div>

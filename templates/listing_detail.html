@@ -42,6 +42,17 @@
         <div class="price-range">
             Price range: {{ listing.price_min|currency }} - {{ listing.price_max|currency }}
         </div>
+        
+        <div class="meta-label">Listed Price</div>
+        <div class="meta-value">
+            <input id="listpricefield" class="editable-field" type="number" value="{{ listing.list_price or '0.00' }}" readonly data-original="{{ listing.list_price or '0.00' }}">
+        </div>
+        
+        <div class="meta-label">Sold Price</div>
+        <div class="meta-value">
+            <input id="soldpricefield" class="editable-field" type="number" value="{{ listing.sold_price or '0.00' }}" readonly data-original="{{ listing.sold_price or '0.00' }}">
+        </div>
+        
     </div>
 
     <div class="meta-item">
@@ -673,6 +684,8 @@ setupEditableField('statusfield', 'status');
 setupEditableField('conditionfield', 'condition');
 setupEditableField('measurementsfield', 'measurements');
 setupEditableField('descriptionfield', 'description');
+setupEditableField('listpricefield', 'description');
+setupEditableField('soldpricefield', 'description');
 
 </script>
 
