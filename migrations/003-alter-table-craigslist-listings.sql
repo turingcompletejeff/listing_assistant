@@ -1,4 +1,4 @@
-ALTER TABLE craigslist_listings DROP COULMN research_sources;
+ALTER TABLE craigslist_listings DROP COLUMN research_sources;
 
 ALTER TABLE craigslist_listings ADD COLUMN list_price DECIMAL(10,2);
 
